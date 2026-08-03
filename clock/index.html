@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>時鐘</title>
+<meta name="description" content="簡潔的網頁時鐘，顯示當地時間、日期與即時天氣。">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0d0f14" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<!-- 可加入手機主畫面，開啟後無瀏覽器介面 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="時鐘">
+<!-- 分享到社群/通訊軟體時的預覽文字 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="時鐘">
+<meta property="og:description" content="簡潔的網頁時鐘，顯示當地時間、日期與即時天氣。">
+<!-- 內嵌 SVG favicon，不需額外圖檔 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='29' fill='none' stroke='%236ea8fe' stroke-width='5'/%3E%3Cpath d='M32 16v18l12 7' fill='none' stroke='%236ea8fe' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --fg: #f2f4f8;
+    --muted: #8b93a3;
+    --accent: #6ea8fe;
+    --btn: rgba(255, 255, 255, 0.08);
+    --btn-hover: rgba(255, 255, 255, 0.16);
+    --card: rgba(255, 255, 255, 0.05);
+    /* 天氣圖示配色 */
+    --wx-sun: #ffc861;
+    --wx-moon: #cdd6e6;
+    --wx-cloud: #9aa6bb;
+    --wx-cloud-dark: #6f7c92;
+    --wx-rain: #6ea8fe;
+    --wx-snow: #dbe6f5;
+    --wx-bolt: #ffd166;
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f7f9;
+    --fg: #14171d;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --btn: rgba(0, 0, 0, 0.06);
+    --btn-hover: rgba(0, 0, 0, 0.12);
+    --card: rgba(0, 0, 0, 0.04);
+    --wx-sun: #f59e0b;
+    --wx-moon: #64748b;
+    --wx-cloud: #94a3b8;
+    --wx-cloud-dark: #64748b;
+    --wx-rain: #2563eb;
+    --wx-snow: #7dd3fc;
+    --wx-bolt: #d97706;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.6vh;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC",
+                 "PingFang TC", "Microsoft JhengHei", sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    padding: 4vh 1rem;
+  }
+
+  #clock {
+    display: flex;
+    align-items: baseline;
+    line-height: 1;
+    font-size: clamp(3.5rem, 17vw, 12rem);
+    font-weight: 200;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  #seconds {
+    font-size: 0.36em;
+    font-weight: 300;
+    color: var(--muted);
+    margin-left: 0.18em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #meridiem {
+    font-size: 0.2em;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin-left: 0.35em;
+    text-transform: uppercase;
+  }
+  #meridiem:empty { display: none; }
+
+  #date {
+    font-size: clamp(0.95rem, 3.4vw, 1.5rem);
+    font-weight: 400;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* ---------- 天氣 ---------- */
+  #weather {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-top: 1.5vh;
+    padding: 0.7rem 1.4rem 0.7rem 1rem;
+    border-radius: 1.1rem;
+    background: var(--card);
+    cursor: pointer;
+    border: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    max-width: 92vw;
+    transition: background-color 0.2s ease, opacity 0.3s ease;
+  }
+  #weather:hover { background: var(--btn-hover); }
+  #weather:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  #weather.loading { opacity: 0.5; }
+
+  #wx-icon {
+    flex: 0 0 auto;
+    width: clamp(2.6rem, 9vw, 3.6rem);
+    height: clamp(2.6rem, 9vw, 3.6rem);
+  }
+  #wx-icon svg { display: block; width: 100%; height: 100%; }
+
+  #wx-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+
+  #wx-main {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    line-height: 1.1;
+  }
+
+  #wx-temp {
+    font-size: clamp(1.5rem, 5.5vw, 2.3rem);
+    font-weight: 300;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #wx-cond {
+    font-size: clamp(0.9rem, 3.2vw, 1.15rem);
+    font-weight: 500;
+  }
+
+  #wx-meta {
+    font-size: clamp(0.72rem, 2.6vw, 0.9rem);
+    color: var(--muted);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-top: 2.5vh;
+    opacity: 0.35;
+    transition: opacity 0.25s ease;
+  }
+  #controls:hover, #controls:focus-within { opacity: 1; }
+
+  button.ctl {
+    appearance: none;
+    border: 0;
+    border-radius: 999px;
+    padding: 0.55em 1.15em;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--fg);
+    background: var(--btn);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  button.ctl:hover { background: var(--btn-hover); }
+  button.ctl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    body, #controls, button, #weather { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="clock" role="timer" aria-live="off">
+    <span id="hm">--:--</span><span id="seconds">--</span><span id="meridiem"></span>
+  </div>
+
+  <div id="date">載入中…</div>
+
+  <button id="weather" type="button" class="loading" title="點一下重新取得天氣">
+    <span id="wx-icon" aria-hidden="true"></span>
+    <span id="wx-body">
+      <span id="wx-main">
+        <span id="wx-temp">--°</span>
+        <span id="wx-cond">取得天氣中…</span>
+      </span>
+      <span id="wx-meta">正在定位</span>
+    </span>
+  </button>
+
+  <div id="controls">
+    <button id="format-btn" class="ctl" type="button">24 小時制</button>
+    <button id="theme-btn" class="ctl" type="button">淺色</button>
+    <button id="unit-btn" class="ctl" type="button">°F</button>
+    <button id="fs-btn" class="ctl" type="button">全螢幕</button>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ==================== 偏好設定 ==================== */
+
+  function load(key, fallback) {
+    try {
+      var v = localStorage.getItem(key);
+      return v === null ? fallback : v;
+    } catch (e) { return fallback; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* 忽略 */ }
+  }
+
+  var use24 = load("clock.use24", "true") === "true";
+  var unit = load("clock.unit", "c");            // "c" | "f"
+  var theme = load("clock.theme", "");           // "" = 跟隨系統
+
+  /* ==================== 時鐘 ==================== */
+
+  var hmEl = document.getElementById("hm");
+  var secEl = document.getElementById("seconds");
+  var merEl = document.getElementById("meridiem");
+  var dateEl = document.getElementById("date");
+
+  var WEEKDAYS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+
+  function pad(n) { return n < 10 ? "0" + n : String(n); }
+
+  function render() {
+    var now = new Date();
+    var h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+
+    if (use24) {
+      hmEl.textContent = pad(h) + ":" + pad(m);
+      merEl.textContent = "";
+    } else {
+      hmEl.textContent = (h % 12 === 0 ? 12 : h % 12) + ":" + pad(m);
+      merEl.textContent = h < 12 ? "AM" : "PM";
+    }
+    secEl.textContent = pad(s);
+
+    dateEl.textContent = now.getFullYear() + "年" + (now.getMonth() + 1) + "月" +
+      now.getDate() + "日　" + WEEKDAYS[now.getDay()];
+
+    document.title = hmEl.textContent + " 時鐘";
+  }
+
+  // 對齊系統整秒，長時間開著也不會累積偏移
+  function tick() {
+    render();
+    setTimeout(tick, 1000 - new Date().getMilliseconds());
+  }
+
+  /* ==================== 天氣圖示（純內嵌 SVG，無外部圖檔） ==================== */
+
+  function svg(inner) {
+    return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' + inner + "</svg>";
+  }
+
+  function sun(cx, cy, r) {
+    var out = "", i, a;
+    for (i = 0; i < 8; i++) {
+      a = i * Math.PI / 4;
+      out += '<line x1="' + (cx + (r + 3.5) * Math.cos(a)).toFixed(1) +
+             '" y1="' + (cy + (r + 3.5) * Math.sin(a)).toFixed(1) +
+             '" x2="' + (cx + (r + 8) * Math.cos(a)).toFixed(1) +
+             '" y2="' + (cy + (r + 8) * Math.sin(a)).toFixed(1) + '"/>';
+    }
+    return '<g stroke="var(--wx-sun)" stroke-width="3.4" stroke-linecap="round">' + out + "</g>" +
+           '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--wx-sun)"/>';
+  }
+
+  function moon(cx, cy, r) {
+    // 用一個實心圓減去偏移的圓，做出月牙
+    var id = "m" + cx + cy + r;
+    return '<mask id="' + id + '"><rect width="64" height="64" fill="#000"/>' +
+           '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#fff"/>' +
+           '<circle cx="' + (cx + r * 0.62) + '" cy="' + (cy - r * 0.62) + '" r="' + (r * 0.92) + '" fill="#000"/>' +
+           "</mask>" +
+           '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="var(--wx-moon)" mask="url(#' + id + ')"/>';
+  }
+
+  // 由三個圓 + 圓角矩形聯集成雲，避免手繪貝茲曲線變形
+  function cloud(dx, dy, scale, color) {
+    return '<g transform="translate(' + dx + ',' + dy + ') scale(' + scale + ')" fill="' + color + '">' +
+           '<circle cx="23" cy="34" r="9"/>' +
+           '<circle cx="34" cy="26" r="12.5"/>' +
+           '<circle cx="45" cy="34" r="9"/>' +
+           '<rect x="14" y="34" width="37" height="10" rx="5"/>' +
+           "</g>";
+  }
+
+  function drops(xs, y, color) {
+    var out = "", i;
+    for (i = 0; i < xs.length; i++) {
+      out += '<line x1="' + xs[i] + '" y1="' + y + '" x2="' + (xs[i] - 3) + '" y2="' + (y + 10) + '"/>';
+    }
+    return '<g stroke="' + color + '" stroke-width="3.4" stroke-linecap="round">' + out + "</g>";
+  }
+
+  function flakes(xs, y) {
+    var out = "", i, j, a, x, r = 4.5;
+    for (i = 0; i < xs.length; i++) {
+      x = xs[i];
+      for (j = 0; j < 3; j++) {
+        a = j * Math.PI / 3;
+        out += '<line x1="' + (x - r * Math.cos(a)).toFixed(1) + '" y1="' + (y - r * Math.sin(a)).toFixed(1) +
+               '" x2="' + (x + r * Math.cos(a)).toFixed(1) + '" y2="' + (y + r * Math.sin(a)).toFixed(1) + '"/>';
+      }
+    }
+    return '<g stroke="var(--wx-snow)" stroke-width="2.6" stroke-linecap="round">' + out + "</g>";
+  }
+
+  var BOLT = '<path d="M33 40 L27 56 L41 44 L34 44 L40 32 L26 44 Z" fill="var(--wx-bolt)"/>';
+
+  var ICONS = {
+    "clear-day":     function () { return svg(sun(32, 32, 12)); },
+    "clear-night":   function () { return svg(moon(32, 32, 16)); },
+    "partly-day":    function () { return svg(sun(41, 20, 8) + cloud(-2, 6, 0.95, "var(--wx-cloud)")); },
+    "partly-night":  function () { return svg(moon(43, 19, 11) + cloud(-2, 6, 0.95, "var(--wx-cloud)")); },
+    "cloudy":        function () { return svg(cloud(6, 2, 0.72, "var(--wx-cloud-dark)") + cloud(-3, 8, 0.95, "var(--wx-cloud)")); },
+    "fog":           function () { return svg(cloud(0, -2, 0.9, "var(--wx-cloud)") +
+                                     '<g stroke="var(--wx-cloud-dark)" stroke-width="3.4" stroke-linecap="round">' +
+                                     '<line x1="14" y1="48" x2="46" y2="48"/><line x1="20" y1="56" x2="42" y2="56"/></g>'); },
+    "drizzle":       function () { return svg(cloud(0, -3, 0.9, "var(--wx-cloud)") + drops([25, 34, 43], 44, "var(--wx-rain)")); },
+    "rain":          function () { return svg(cloud(0, -5, 0.9, "var(--wx-cloud)") + drops([24, 33, 42], 42, "var(--wx-rain)") + drops([28, 37], 50, "var(--wx-rain)")); },
+    "sleet":         function () { return svg(cloud(0, -5, 0.9, "var(--wx-cloud)") + drops([25, 41], 44, "var(--wx-rain)") + flakes([33], 50)); },
+    "snow":          function () { return svg(cloud(0, -5, 0.9, "var(--wx-cloud)") + flakes([24, 41], 46) + flakes([33], 56)); },
+    "thunder":       function () { return svg(cloud(0, -6, 0.9, "var(--wx-cloud-dark)") + BOLT); },
+    "thunder-hail":  function () { return svg(cloud(0, -6, 0.9, "var(--wx-cloud-dark)") + BOLT + flakes([20, 46], 48)); }
+  };
+
+  /* ==================== WMO 天氣代碼對照 ==================== */
+
+  var WMO = {
+    0:  ["晴朗",       "clear"],
+    1:  ["大致晴朗",   "clear"],
+    2:  ["局部多雲",   "partly"],
+    3:  ["陰天",       "cloudy"],
+    45: ["有霧",       "fog"],
+    48: ["凍霧",       "fog"],
+    51: ["毛毛雨",     "drizzle"],
+    53: ["毛毛雨",     "drizzle"],
+    55: ["毛毛雨較大", "drizzle"],
+    56: ["凍毛雨",     "sleet"],
+    57: ["凍毛雨",     "sleet"],
+    61: ["小雨",       "rain"],
+    63: ["下雨",       "rain"],
+    65: ["大雨",       "rain"],
+    66: ["凍雨",       "sleet"],
+    67: ["強凍雨",     "sleet"],
+    71: ["小雪",       "snow"],
+    73: ["下雪",       "snow"],
+    75: ["大雪",       "snow"],
+    77: ["雪珠",       "snow"],
+    80: ["陣雨",       "rain"],
+    81: ["陣雨",       "rain"],
+    82: ["強陣雨",     "rain"],
+    85: ["陣雪",       "snow"],
+    86: ["強陣雪",     "snow"],
+    95: ["雷雨",       "thunder"],
+    96: ["雷雨夾冰雹", "thunder-hail"],
+    99: ["強雷雨夾冰雹", "thunder-hail"]
+  };
+
+  function describe(code, isDay) {
+    var hit = WMO[code] || ["天氣不明", "cloudy"];
+    var key = hit[1];
+    if (key === "clear" || key === "partly") key += isDay ? "-day" : "-night";
+    return { text: hit[0], icon: key };
+  }
+
+  /* ==================== 取得天氣 ==================== */
+
+  var wxEl = document.getElementById("weather");
+  var wxIcon = document.getElementById("wx-icon");
+  var wxTemp = document.getElementById("wx-temp");
+  var wxCond = document.getElementById("wx-cond");
+  var wxMeta = document.getElementById("wx-meta");
+  var unitBtn = document.getElementById("unit-btn");
+
+  var latest = null;      // 最近一次天氣資料，切換單位時直接重畫
+  var coords = null;      // { lat, lon, place }
+  var fetchedAt = 0;
+  var inFlight = false;
+  var STALE_MS = 10 * 60 * 1000;
+
+  function getJSON(url, timeoutMs) {
+    // 舊版 Safari 沒有 AbortSignal.timeout，所以自己接 AbortController
+    var ctl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, timeoutMs || 8000) : null;
+    return fetch(url, ctl ? { signal: ctl.signal } : undefined)
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .finally(function () { if (timer) clearTimeout(timer); });
+  }
+
+  // 先問瀏覽器定位（較準）；被拒絕或不支援就退回 IP 定位
+  function locate() {
+    return new Promise(function (resolve, reject) {
+      if (!navigator.geolocation) { reject(new Error("no geolocation")); return; }
+      navigator.geolocation.getCurrentPosition(
+        function (pos) { resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, place: null }); },
+        function (err) { reject(err); },
+        { timeout: 8000, maximumAge: 30 * 60 * 1000 }
+      );
+    }).then(function (c) {
+      // 反查地名；查不到就只顯示座標
+      return getJSON("https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=" +
+                     c.lat + "&longitude=" + c.lon + "&localityLanguage=zh", 6000)
+        .then(function (g) {
+          c.place = g.city || g.locality || g.principalSubdivision || g.countryName || null;
+          return c;
+        })
+        .catch(function () { return c; });
+    }).catch(function () {
+      wxMeta.textContent = "以 IP 位置估算…";
+      return getJSON("https://get.geojs.io/v1/ip/geo.json", 8000).then(function (g) {
+        return {
+          lat: parseFloat(g.latitude),
+          lon: parseFloat(g.longitude),
+          place: g.city || g.region || g.country || null
+        };
+      });
+    });
+  }
+
+  function fetchWeather() {
+    if (inFlight) return;
+    inFlight = true;
+    wxEl.classList.add("loading");
+
+    var step = coords ? Promise.resolve(coords) : locate();
+
+    step.then(function (c) {
+      coords = c;
+      if (!isFinite(c.lat) || !isFinite(c.lon)) throw new Error("bad coords");
+      return getJSON("https://api.open-meteo.com/v1/forecast?latitude=" + c.lat.toFixed(4) +
+                     "&longitude=" + c.lon.toFixed(4) +
+                     "&current=temperature_2m,apparent_temperature,relative_humidity_2m," +
+                     "weather_code,is_day,wind_speed_10m&timezone=auto", 9000);
+    }).then(function (data) {
+      var cur = data && data.current;
+      if (!cur) throw new Error("no current data");
+      latest = cur;
+      fetchedAt = Date.now();
+      paintWeather();
+    }).catch(function (err) {
+      latest = null;
+      wxIcon.innerHTML = ICONS.cloudy();
+      wxTemp.textContent = "--°";
+      wxCond.textContent = "天氣暫時取不到";
+      wxMeta.textContent = (navigator.onLine === false ? "目前離線" : "點一下重試") +
+                           "（" + (err && err.message ? err.message : "錯誤") + "）";
+    }).finally(function () {
+      inFlight = false;
+      wxEl.classList.remove("loading");
+    });
+  }
+
+  function toDisplay(celsius) {
+    return unit === "f" ? celsius * 9 / 5 + 32 : celsius;
+  }
+
+  function paintWeather() {
+    if (!latest) return;
+    var info = describe(latest.weather_code, latest.is_day === 1);
+    var deg = unit === "f" ? "°F" : "°C";
+
+    wxIcon.innerHTML = ICONS[info.icon] ? ICONS[info.icon]() : ICONS.cloudy();
+    wxTemp.textContent = Math.round(toDisplay(latest.temperature_2m)) + "°";
+    wxCond.textContent = info.text;
+
+    var bits = [];
+    if (coords && coords.place) bits.push(coords.place);
+    if (typeof latest.apparent_temperature === "number") {
+      bits.push("體感 " + Math.round(toDisplay(latest.apparent_temperature)) + deg);
+    }
+    if (typeof latest.relative_humidity_2m === "number") {
+      bits.push("濕度 " + latest.relative_humidity_2m + "%");
+    }
+    if (typeof latest.wind_speed_10m === "number") {
+      bits.push("風 " + Math.round(latest.wind_speed_10m) + " km/h");
+    }
+    wxMeta.textContent = bits.join("・");
+    wxEl.setAttribute("aria-label",
+      "天氣：" + info.text + "，" + Math.round(toDisplay(latest.temperature_2m)) + deg +
+      "。點一下重新取得。");
+  }
+
+  wxEl.addEventListener("click", function () {
+    wxCond.textContent = "更新中…";
+    fetchWeather();
+  });
+
+  /* ==================== 控制項 ==================== */
+
+  var formatBtn = document.getElementById("format-btn");
+  var themeBtn = document.getElementById("theme-btn");
+  var fsBtn = document.getElementById("fs-btn");
+
+  var systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+  function effectiveTheme() {
+    return theme === "dark" || theme === "light" ? theme : (systemDark.matches ? "dark" : "light");
+  }
+  function applyTheme() {
+    var t = effectiveTheme();
+    document.documentElement.setAttribute("data-theme", t);
+    themeBtn.textContent = t === "dark" ? "淺色" : "深色";
+  }
+  systemDark.addEventListener("change", function () {
+    if (theme !== "dark" && theme !== "light") applyTheme();
+  });
+
+  function applyFormat() {
+    formatBtn.textContent = use24 ? "12 小時制" : "24 小時制";
+    render();
+  }
+  function applyUnit() {
+    unitBtn.textContent = unit === "c" ? "°F" : "°C";
+    paintWeather();
+  }
+
+  formatBtn.addEventListener("click", function () {
+    use24 = !use24;
+    save("clock.use24", String(use24));
+    applyFormat();
+  });
+
+  themeBtn.addEventListener("click", function () {
+    theme = effectiveTheme() === "dark" ? "light" : "dark";
+    save("clock.theme", theme);
+    applyTheme();
+  });
+
+  unitBtn.addEventListener("click", function () {
+    unit = unit === "c" ? "f" : "c";
+    save("clock.unit", unit);
+    applyUnit();
+  });
+
+  fsBtn.addEventListener("click", function () {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+  });
+
+  document.addEventListener("fullscreenchange", function () {
+    fsBtn.textContent = document.fullscreenElement ? "離開全螢幕" : "全螢幕";
+  });
+
+  // 切回前景時補刷：時間立刻更新，天氣超過 10 分鐘才重抓
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) return;
+    render();
+    if (Date.now() - fetchedAt > STALE_MS) fetchWeather();
+  });
+
+  window.addEventListener("online", function () {
+    if (!latest) fetchWeather();
+  });
+
+  /* ==================== 啟動 ==================== */
+
+  applyTheme();
+  applyFormat();
+  applyUnit();
+  tick();
+  fetchWeather();
+  setInterval(function () {
+    if (!document.hidden) fetchWeather();
+  }, STALE_MS);
+})();
+</script>
+</body>
+</html>

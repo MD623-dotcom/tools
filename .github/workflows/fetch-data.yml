@@ -1,0 +1,57 @@
+# 定時抓資料的範例 workflow。
+#
+# 它會每天跑一次 scripts/fetch_weather.py，把結果寫進 data/，
+# 然後自動 commit 回這個 repo。前端網頁讀 data/ 裡的 JSON 畫報表。
+#
+# 公開 repo 的 GitHub Actions 是免費且沒有分鐘數上限的。
+#
+# 想手動跑一次：GitHub repo 頁面 → Actions → 選這個 workflow → Run workflow
+# 想暫停：Actions 頁面右上角有 "Disable workflow"，或把下面的 schedule 註解掉
+
+name: 定時抓資料
+
+on:
+  schedule:
+    # cron 用的是 UTC 時間。22:10 UTC = 台北時間隔天早上 06:10
+    - cron: "10 22 * * *"
+  workflow_dispatch:        # 讓你可以在網頁上手動按一鍵執行
+
+# 允許這個 workflow 把資料 commit 回 repo
+permissions:
+  contents: write
+
+# 同時只跑一個，避免兩次執行互相蓋掉
+concurrency:
+  group: fetch-data
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+
+      - name: 準備 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 抓資料
+        env:
+          # 私密金鑰放在 repo 的 Settings → Secrets and variables → Actions，
+          # 然後像這樣傳進來。沒設定的話會是空字串，這個範例用不到。
+          MY_API_KEY: ${{ secrets.MY_API_KEY }}
+        run: python scripts/fetch_weather.py
+
+      - name: 有變更才 commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --staged --quiet; then
+            echo "資料沒有變化，這次不 commit"
+          else
+            git commit -m "資料更新 $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
